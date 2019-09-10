@@ -21,19 +21,23 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
     input_ = input.contiguous()
     weight_ = weight.contiguous()
     bias_ = bias.contiguous()
-    ###
-    for var_ in [input_, ctx.normalized_shape, weight_, bias_, ctx.eps]:
-        print(type(var_))
-        if isinstance(var_, (float, torch.float)):
-            print(f"isinstance float/torch.float: {var_}")
-            try:
-                var_ = var_.half()
-            except:
-                print("cannot convert to half directly")
-                var_ = torch.Tensor([var_]).half().item()
 
-    output, mean, invvar = fused_layer_norm_cuda.forward_affine(
-        input_, ctx.normalized_shape, weight_, bias_, ctx.eps)
+    try:
+        output, mean, invvar = fused_layer_norm_cuda.forward_affine(
+            input_, ctx.normalized_shape, weight_, bias_, ctx.eps)
+    except:
+        ###
+        for var_ in [input_, ctx.normalized_shape, weight_, bias_, ctx.eps]:
+            print(type(var_))
+            if isinstance(var_, (float, torch.float)):
+                print(f"isinstance float/torch.float: {var_}")
+                try:
+                    var_ = var_.half()
+                except:
+                    print("cannot convert to half directly")
+                    var_ = torch.Tensor([var_]).half().item()
+        output, mean, invvar = fused_layer_norm_cuda.forward_affine(
+            input_, ctx.normalized_shape, weight_, bias_, ctx.eps)
     ctx.save_for_backward(input_, weight_, bias_, mean, invvar)
     return output
 
