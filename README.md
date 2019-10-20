@@ -8,6 +8,8 @@ users as quickly as possible.
 
 ## Full API Documentation: [https://nvidia.github.io/apex](https://nvidia.github.io/apex)
 
+## [GTC 2019](https://github.com/mcarilli/mixed_precision_references/tree/master/GTC_2019) and [Pytorch DevCon 2019](https://github.com/mcarilli/mixed_precision_references/tree/master/Pytorch_Devcon_2019) Slides
+
 # Contents
 
 ## 1. Amp:  Automatic Mixed Precision
@@ -66,6 +68,9 @@ opt_level = 'O1'
 model, optimizer = amp.initialize(model, optimizer, opt_level=opt_level)
 
 # Train your model
+...
+with amp.scale_loss(loss, optimizer) as scaled_loss:
+    scaled_loss.backward()
 ...
 
 # Save checkpoint

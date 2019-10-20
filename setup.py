@@ -5,10 +5,20 @@ import subprocess
 from pip._internal import main as pipmain
 import sys
 import warnings
+import os
 
 if not torch.cuda.is_available():
-    print("\nWarning: Torch did not find available GPUs on this system.\n",
-          "If your intention is to cross-compile, this is not an error.\n")
+    # https://github.com/NVIDIA/apex/issues/486
+    # Extension builds after https://github.com/pytorch/pytorch/pull/23408 attempt to query torch.cuda.get_device_capability(),
+    # which will fail if you are compiling in an environment without visible GPUs (e.g. during an nvidia-docker build command).
+    print('\nWarning: Torch did not find available GPUs on this system.\n',
+          'If your intention is to cross-compile, this is not an error.\n'
+          'By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n'
+          'Volta (compute capability 7.0), and Turing (compute capability 7.5).\n'
+          'If you wish to cross-compile for a single specific architecture,\n'
+          'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n')
+    if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
+        os.environ["TORCH_CUDA_ARCH_LIST"] = "6.0;6.1;6.2;7.0;7.5"
 
 print("torch.__version__  = ", torch.__version__)
 TORCH_MAJOR = int(torch.__version__.split('.')[0])
@@ -107,13 +117,6 @@ if "--cuda_ext" in sys.argv:
                                                       # '--resource-usage',
                                                       '--use_fast_math'] + version_dependent_macros}))
         ext_modules.append(
-            CUDAExtension(name='fused_adam_cuda',
-                          sources=['csrc/fused_adam_cuda.cpp',
-                                   'csrc/fused_adam_cuda_kernel.cu'],
-                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
-                                              'nvcc':['-O3',
-                                                      '--use_fast_math'] + version_dependent_macros}))
-        ext_modules.append(
             CUDAExtension(name='syncbn',
                           sources=['csrc/syncbn.cpp',
                                    'csrc/welford.cu'],
@@ -171,6 +174,25 @@ if "--xentropy" in sys.argv:
                           include_dirs=['csrc'],
                           extra_compile_args={'cxx': ['-O3'] + version_dependent_macros,
                                               'nvcc':['-O3'] + version_dependent_macros}))
+
+if "--deprecated_fused_adam" in sys.argv:
+    from torch.utils.cpp_extension import CUDAExtension
+    sys.argv.remove("--deprecated_fused_adam")
+
+    from torch.utils.cpp_extension import BuildExtension
+    cmdclass['build_ext'] = BuildExtension
+
+    if torch.utils.cpp_extension.CUDA_HOME is None:
+        raise RuntimeError("--deprecated_fused_adam was requested, but nvcc was not found.  Are you sure your environment has nvcc available?  If you're installing within a container from https://hub.docker.com/r/pytorch/pytorch, only images whose names contain 'devel' will provide nvcc.")
+    else:
+        ext_modules.append(
+            CUDAExtension(name='fused_adam_cuda',
+                          sources=['apex/contrib/csrc/optimizers/fused_adam_cuda.cpp',
+                                   'apex/contrib/csrc/optimizers/fused_adam_cuda_kernel.cu'],
+                          include_dirs=['csrc'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros,
+                                              'nvcc':['-O3',
+                                                      '--use_fast_math'] + version_dependent_macros}))
 
 setup(
     name='apex',
